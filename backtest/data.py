@@ -36,7 +36,11 @@ def _cache_path(market: str, ticker: str) -> str:
 
 def _clean(df: pd.DataFrame, name: str, max_move: float) -> pd.DataFrame:
     df = df[COLS].dropna()
-    df = df[(df["Close"] > 0) & (df["High"] >= df["Low"])]
+    df = df[pd.to_datetime(df.index).tz_localize(None) < pd.Timestamp.today().normalize()]   # 장중 미완성 봉 제외
+    # 거래정지일(시가·고가·저가 0, 거래량 0)은 체결이 불가능하므로 제외
+    df = df[(df[["Open", "High", "Low", "Close"]] > 0).all(axis=1) & (df["High"] >= df["Low"])]
+    if "Volume" in df and name not in (US_INDEX, KR_INDEX):
+        df = df[df["Volume"] > 0]
     df.index = pd.to_datetime(df.index).tz_localize(None)
     jumps = df["Close"].pct_change().abs() > max_move
     if jumps.any():

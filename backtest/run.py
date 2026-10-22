@@ -55,7 +55,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--market", choices=["us", "kr", "both"], default="both")
     ap.add_argument("--start", default="2005-01-01")
-    ap.add_argument("--split", default="2016-01-01", help="이 날짜 전/후로 성과를 나눠 비교")
+    ap.add_argument("--split", help="이 날짜 전/후로 성과를 나눠 비교 (기본: 데이터 기간 중간)")
     ap.add_argument("--csv-dir", help="직접 받은 CSV 폴더 (종목코드.csv)")
     ap.add_argument("--tickers", help="쉼표로 구분한 종목 목록 (기본: 대형주 유니버스)")
     ap.add_argument("--no-market-filter", action="store_true")
@@ -72,7 +72,7 @@ def main():
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             data, index_df = data_mod.load(market, tickers, args.start, args.csv_dir, args.refresh)
-        notes = [str(x.message) for x in w]
+        notes = [str(x.message) for x in w if issubclass(x.category, UserWarning)]
         params = Params(use_market_filter=not args.no_market_filter,
                         min_traded_value=MIN_TRADED_VALUE[market])
 
@@ -90,12 +90,13 @@ def main():
         report.append(f"\n지수 단순보유: CAGR {b['CAGR']:.1%}, MDD {b['MDD']:.1%}\n")
 
         # 기간 분할: 앞 구간에서 좋았던 규칙이 뒤 구간에서도 유지되는지
+        split = args.split or f"{eq0[0] + (eq0[-1] - eq0[0]) / 2:%Y-%m-%d}"
         split_rows = {}
         for s in STRATEGIES:
-            for label, (a, z) in {"전": (None, args.split), "후": (args.split, None)}.items():
+            for label, (a, z) in {"전": (None, split), "후": (split, None)}.items():
                 r = summarize(run_one(data, index_df, market, s, params, a, z))
                 split_rows[f"{s} {label}"] = {k: r.get(k) for k in ("기간", "CAGR", "MDD", "거래수", "승률", "평균R(기대값)")}
-        report.append(f"\n### 기간 분할 ({args.split} 전/후)\n")
+        report.append(f"\n### 기간 분할 ({split} 전/후)\n")
         report.append(table(split_rows))
 
         if args.sensitivity:
