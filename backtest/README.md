@@ -9,6 +9,7 @@ pip install -r requirements.txt
 python run.py                      # 미국+국내, 3개 전략 → results/report.md
 python run.py --market kr --sensitivity
 python run.py --no-market-filter   # 지수 필터 효과 비교
+python compare_signals.py          # 돌파 신호 정의 7가지 비교 → results/signals.md
 python -m pytest test_engine.py -q # 체결 로직 테스트
 ```
 

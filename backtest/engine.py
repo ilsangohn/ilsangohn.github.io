@@ -59,14 +59,26 @@ class Params:
     bo_stop_atr: float = 2.0
     bo_target_r: float = 2.0
     bo_trail_len: int = 10
+    bo_signal: str = "base"         # BREAKOUT_SIGNALS 중 하나
 
 
 STRATEGIES = ("pullback", "breakout_2r", "breakout_trail")
 
+# 돌파 신호 정의 (모두 t일 종가 기준)
+BREAKOUT_SIGNALS = {
+    "base": "20일 최고가 돌파 + 거래량 1.5배",
+    "no_volume": "20일 최고가 돌파 (거래량 조건 없음)",
+    "donchian55": "55일 최고가 돌파 (터틀 2번 시스템)",
+    "high52w": "52주(250일) 최고가 돌파 + 거래량 1.5배",
+    "squeeze": "20일 변동폭이 1년 중 하위 25%로 좁아진 뒤 기본 돌파",
+    "strong_close": "기본 돌파 + 종가가 당일 고저폭 상위 20%",
+    "rel_strength": "기본 돌파 + 120일 수익률이 지수보다 높음",
+}
+
 
 # ---------------------------------------------------------------- 지표 / 신호
 
-def add_indicators(df: pd.DataFrame, p: Params) -> pd.DataFrame:
+def add_indicators(df: pd.DataFrame, p: Params, index_close: pd.Series | None = None) -> pd.DataFrame:
     df = df.copy()
     c, h, l = df["Close"], df["High"], df["Low"]
     prev_c = c.shift(1)
@@ -89,9 +101,35 @@ def add_indicators(df: pd.DataFrame, p: Params) -> pd.DataFrame:
         & (c >= df["ma20"] - p.pb_below_ma20_atr * df["atr"])
         & (df["hh10"] - c >= p.pb_pullback_atr * df["atr"])
     )
-    df["sig_breakout"] = (c > df["hh_prev"]) & (df["Volume"] >= p.bo_vol_mult * df["vol_avg_prev"])
+    df["sig_breakout"] = breakout_signal(df, p, index_close)
     df["liquid"] = df["traded_value"] >= p.min_traded_value
     return df
+
+
+def breakout_signal(df: pd.DataFrame, p: Params, index_close: pd.Series | None) -> pd.Series:
+    c, h, l = df["Close"], df["High"], df["Low"]
+    vol_ok = df["Volume"] >= p.bo_vol_mult * df["vol_avg_prev"]
+    base = (c > df["hh_prev"]) & vol_ok
+    kind = p.bo_signal
+    if kind == "base":
+        return base
+    if kind == "no_volume":
+        return c > df["hh_prev"]
+    if kind == "donchian55":
+        return c > h.rolling(55).max().shift(1)
+    if kind == "high52w":
+        return (c > h.rolling(250).max().shift(1)) & vol_ok
+    if kind == "squeeze":
+        width = ((h.rolling(20).max() - l.rolling(20).min()) / c).shift(1)   # 돌파 전날까지의 박스 폭
+        return base & (width <= width.rolling(250).quantile(0.25))
+    if kind == "strong_close":
+        return base & ((c - l) >= 0.8 * (h - l))
+    if kind == "rel_strength":
+        if index_close is None:
+            raise ValueError("rel_strength 신호에는 지수 데이터가 필요합니다")
+        idx = index_close.reindex(df.index).ffill()
+        return base & (c / c.shift(120) > idx / idx.shift(120))
+    raise ValueError(f"알 수 없는 돌파 신호: {kind}")
 
 
 def market_ok(index_df: pd.DataFrame | None) -> pd.Series | None:
@@ -131,7 +169,8 @@ class Backtest:
         self.p = params or Params()
         self.strategy = strategy
         self.costs = costs
-        self.data = {t: add_indicators(df, self.p) for t, df in data.items() if len(df) > 80}
+        index_close = index_df["Close"] if index_df is not None else None
+        self.data = {t: add_indicators(df, self.p, index_close) for t, df in data.items() if len(df) > 80}
         self.rows = {t: df.to_dict("index") for t, df in self.data.items()}   # 날짜 → 봉 (조회 속도용)
         self.mkt = market_ok(index_df) if self.p.use_market_filter else None
         self.cash = initial_cash
