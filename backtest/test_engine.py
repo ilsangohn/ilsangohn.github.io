@@ -157,3 +157,40 @@ def test_random_walk_has_no_edge_after_costs():
         rs = pd.DataFrame(bt.trades)["R"]
         # 무작위 시세에서 우위가 나오면 엔진 버그(미래 참조 등)를 의심해야 함
         assert rs.mean() < 3 * rs.std() / np.sqrt(len(rs)), (s, rs.mean())
+
+
+def test_fib618_signal_levels_and_trade():
+    # 100일 횡보(100) → 40일 동안 160까지 상승 → 0.618 되돌림(≈122.9)까지 하락 후 반등
+    up = np.linspace(100, 160, 41)[1:]
+    down = np.linspace(158, 123.5, 12)
+    c = np.concatenate([np.full(100, 100.0), up, down])
+    df = frame(c)
+    i = len(c) - 1
+    set_bar(df, i, 124, 124.5, 122.5, 123.5)       # 저가가 0.618 근처, 종가는 그 위
+    ind = add_indicators(df, Params(st_signal="fib618"))
+    swing_h, swing_l = 161.0, 99.0                  # 고가 = 종가+1, 저가 = 종가-1
+    fib = swing_h - 0.618 * (swing_h - swing_l)
+    assert 122.5 <= fib + 0.2 * ind["atr"].iloc[i] and 123.5 > fib
+    assert ind["sig_structure"].iloc[i]
+    assert ind["st_target"].iloc[i] == swing_h
+    assert np.isclose(ind["st_stop"].iloc[i], 122.5 - 0.25 * ind["atr"].iloc[i])
+
+    # 다음날 신호일 고가(124.5) 돌파로 진입 → 직전 고점 161에서 전량 익절
+    ext = frame(np.full(15, 130.0))
+    ext.index = pd.bdate_range(df.index[-1] + pd.offsets.BDay(), periods=15)
+    set_bar(ext, 0, 124, 126, 123.5, 125)
+    set_bar(ext, 3, 150, 162, 149, 160)
+    bt = run(pd.concat([df, ext]), "structure", st_signal="fib618")
+    t = bt.trades[0]
+    assert t["entry"] == 124.5 and t["exit_reason"] == "target" and t["avg_exit"] == swing_h
+    assert t["R"] > 2
+
+
+def test_spring_signal():
+    c = 100 + np.tile([0, 1, 2, 1, 0, -1, -2, -1], 20)[:150].astype(float)   # 98~102 박스
+    df = frame(c)
+    set_bar(df, 149, 99, 99.5, 96, 99.2)              # 박스 하단(97) 이탈 후 종가 복귀
+    ind = add_indicators(df, Params(st_signal="spring"))
+    assert ind["sig_structure"].iloc[149]
+    assert ind["st_target"].iloc[149] == 103.0
+    assert not ind["sig_structure"].iloc[100:149].any()

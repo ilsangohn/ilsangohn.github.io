@@ -61,8 +61,26 @@ class Params:
     bo_trail_len: int = 10
     bo_signal: str = "base"         # BREAKOUT_SIGNALS 중 하나
 
+    # 3. 구조 기반 자리 (피보나치·스프링·지지저항 전환): 손절·목표가를 차트 구조에서 정함
+    st_signal: str = "fib618"       # STRUCTURE_SIGNALS 중 하나
+    st_swing: int = 60              # 스윙 고점/저점 탐색 기간
+    st_min_impulse_atr: float = 6.0 # 의미 있는 상승파: 저점→고점 6ATR 이상
+    st_box: int = 40                # 박스 기간
+    st_box_max_atr: float = 7.0     # 박스 폭 7ATR 이하만 박스로 인정
+    st_stop_buffer_atr: float = 0.25  # 무효화: 신호일 저가 - 0.25ATR
+    st_min_rr: float = 2.0          # 체결가 기준 (목표-진입)/(진입-손절) ≥ 2 일 때만 진입
+    st_time_stop: int = 20
 
-STRATEGIES = ("pullback", "breakout_2r", "breakout_trail")
+
+STRATEGIES = ("pullback", "breakout_2r", "breakout_trail", "structure")
+
+# 구조 기반 자리 정의. 진입은 모두 다음날 신호일 고가 돌파(스톱 주문).
+STRUCTURE_SIGNALS = {
+    "fib618": "상승파(60일 내 저점→고점 6ATR 이상)의 0.618 되돌림을 찍고 종가가 그 위에서 마감. 목표 = 직전 고점",
+    "fib618_ma": "fib618 + 0.618 가격이 60일선(추세선 대용)과 1ATR 이내로 겹침",
+    "spring": "40일 박스(폭 7ATR 이하) 하단을 장중 이탈 후 종가로 복귀. 목표 = 박스 상단",
+    "sr_flip": "3~15일 전 40일 고점 돌파 후, 그 돌파 가격(옛 저항)까지 되돌림 후 종가로 지지. 목표 = 돌파 후 고점",
+}
 
 # 돌파 신호 정의 (모두 t일 종가 기준)
 BREAKOUT_SIGNALS = {
@@ -102,6 +120,7 @@ def add_indicators(df: pd.DataFrame, p: Params, index_close: pd.Series | None = 
         & (df["hh10"] - c >= p.pb_pullback_atr * df["atr"])
     )
     df["sig_breakout"] = breakout_signal(df, p, index_close)
+    df["sig_structure"], df["st_stop"], df["st_target"] = structure_signal(df, p)
     df["liquid"] = df["traded_value"] >= p.min_traded_value
     return df
 
@@ -130,6 +149,64 @@ def breakout_signal(df: pd.DataFrame, p: Params, index_close: pd.Series | None) 
         idx = index_close.reindex(df.index).ffill()
         return base & (c / c.shift(120) > idx / idx.shift(120))
     raise ValueError(f"알 수 없는 돌파 신호: {kind}")
+
+
+def structure_signal(df: pd.DataFrame, p: Params):
+    """(신호, 손절가, 목표가). t일 종가까지의 데이터만 사용."""
+    c, h, l, atr = df["Close"], df["High"], df["Low"], df["atr"]
+    stop = l - p.st_stop_buffer_atr * atr
+    kind = p.st_signal
+
+    if kind in ("fib618", "fib618_ma"):
+        n = p.st_swing
+        hv, lv = h.to_numpy(float), l.to_numpy(float)
+        pos = np.arange(len(df))
+        # 최근 n일 중 최고가 위치 j (오늘 제외), 그 고점 이전 n일의 최저가 = 스윙 저점
+        win = np.lib.stride_tricks.sliding_window_view(hv, n)            # win[k] = hv[k : k+n]
+        j = np.full(len(df), -1)
+        j[n:] = np.argmax(win[:-1], axis=1) + np.arange(len(win) - 1)   # 오늘 t 기준 hv[t-n : t]
+        low_before = l.rolling(n).min().shift(1).to_numpy()              # low_before[j] = min(lv[j-n : j])
+        valid = j >= n
+        jj = np.where(valid, j, 0)
+        swing_h = np.where(valid, hv[jj], np.nan)
+        swing_l = np.where(valid, low_before[jj], np.nan)
+        rng = swing_h - swing_l
+        fib = swing_h - 0.618 * rng
+        fib786 = swing_h - 0.786 * rng
+        # 고점 이후 오늘 전까지의 최저가 (구조가 0.786 아래로 깨졌으면 무효)
+        low_since = np.full(len(df), np.nan)
+        for t in np.nonzero(valid & (pos - j >= 3))[0]:
+            low_since[t] = lv[j[t] + 1:t].min()
+        a = atr.to_numpy()
+        sig = (
+            valid & (pos - j >= 3)
+            & (rng >= p.st_min_impulse_atr * a)
+            & (lv <= fib + 0.2 * a) & (c.to_numpy() > fib)
+            & (low_since > fib786)
+        )
+        if kind == "fib618_ma":
+            sig &= np.abs(fib - df["ma60"].to_numpy()) <= a
+        return pd.Series(sig, df.index), stop, pd.Series(swing_h, df.index)
+
+    if kind == "spring":
+        box_hi = h.rolling(p.st_box).max().shift(1)
+        box_lo = l.rolling(p.st_box).min().shift(1)
+        is_box = (box_hi - box_lo) <= p.st_box_max_atr * atr
+        sig = is_box & (l < box_lo) & (c > box_lo)
+        return sig, stop, box_hi
+
+    if kind == "sr_flip":
+        hh40 = h.rolling(40).max().shift(1)
+        brk = c > hh40
+        gid = brk.cumsum()
+        level = hh40.where(brk).ffill()                                   # 가장 최근 돌파 때 넘은 옛 저항
+        age = pd.Series(np.arange(len(df)), df.index)
+        age = age - age.where(brk).ffill()
+        hi_since = h.groupby(gid).cummax()                                # 돌파 이후 최고가
+        sig = (~brk) & age.between(3, 15) & (l <= level + 0.25 * atr) & (c > level)
+        return sig, np.minimum(stop, level - p.st_stop_buffer_atr * atr), hi_since
+
+    raise ValueError(f"알 수 없는 구조 신호: {kind}")
 
 
 def market_ok(index_df: pd.DataFrame | None) -> pd.Series | None:
@@ -248,7 +325,7 @@ class Backtest:
             # 4) 내일 진입할 신호 생성
             if self.mkt is not None and not bool(self.mkt.get(d, False)):
                 continue
-            col = "sig_pullback" if self.strategy == "pullback" else "sig_breakout"
+            col = {"pullback": "sig_pullback", "structure": "sig_structure"}.get(self.strategy, "sig_breakout")
             for t, rows in self.rows.items():
                 bar = rows.get(d)
                 if t in self.positions or bar is None:
@@ -257,10 +334,11 @@ class Backtest:
                     continue
                 pending.append({
                     "ticker": t, "atr": bar["atr"],
-                    # 눌림목: 전일 고가 돌파 시 매수(스톱 주문) / 돌파: 다음날 시가 매수
-                    "type": "stop" if self.strategy == "pullback" else "open",
+                    # 눌림목·구조: 전일 고가 돌파 시 매수(스톱 주문) / 돌파: 다음날 시가 매수
+                    "type": "open" if self.strategy.startswith("breakout") else "stop",
                     "level": bar["High"],
                     "priority": bar["traded_value"],
+                    "stop": bar["st_stop"], "target": bar["st_target"],
                 })
 
         # 마지막 날 남은 포지션은 종가로 정리
@@ -302,9 +380,17 @@ class Backtest:
             raw = max(bar["Open"], o["level"])
         fill = raw * (1 + self.costs.slippage)
 
-        k = self.p.pb_stop_atr if self.strategy == "pullback" else self.p.bo_stop_atr
-        rps = k * o["atr"]
-        stop = fill - rps
+        if self.strategy == "structure":
+            stop, target = o["stop"], o["target"]
+            rps = fill - stop
+            # 손절폭이 너무 좁거나, 갭 등으로 체결가가 올라가 손익비가 2 미만이 되면 진입하지 않음
+            if not rps >= 0.25 * o["atr"] or (target - fill) / rps < self.p.st_min_rr:
+                return
+        else:
+            k = self.p.pb_stop_atr if self.strategy == "pullback" else self.p.bo_stop_atr
+            rps = k * o["atr"]
+            stop = fill - rps
+            target = None
         if stop <= 0:
             return
         shares = math.floor(equity * self.p.risk_pct / rps)
@@ -317,11 +403,13 @@ class Backtest:
             return
 
         target_r = {"pullback": self.p.pb_target_r, "breakout_2r": self.p.bo_target_r}.get(self.strategy)
+        if target_r:
+            target = fill + target_r * rps
         cost = self._buy_cost(fill, shares)
         self.cash -= cost
         pos = Position(
             ticker=t, shares=shares, entry_date=d, entry_price=fill, stop=stop,
-            risk_per_share=rps, target=fill + target_r * rps if target_r else None,
+            risk_per_share=rps, target=target,
             init_shares=shares, init_risk=shares * rps, cash_out=cost, last_close=bar["Close"],
         )
         self.positions[t] = pos
@@ -334,6 +422,9 @@ class Backtest:
             if pos.partial_done and bar["Close"] < bar["ma10"]:
                 pos.exit_next_open = "ma10_break"
             elif not pos.partial_done and pos.days_held >= self.p.pb_time_stop:
+                pos.exit_next_open = "time_stop"
+        elif self.strategy == "structure":
+            if pos.days_held >= self.p.st_time_stop:
                 pos.exit_next_open = "time_stop"
         elif self.strategy == "breakout_trail":
             if np.isfinite(bar["ll_trail"]):

@@ -9,7 +9,7 @@ pip install -r requirements.txt
 python run.py                      # 미국+국내, 3개 전략 → results/report.md
 python run.py --market kr --sensitivity
 python run.py --no-market-filter   # 지수 필터 효과 비교
-python compare_signals.py          # 돌파 신호 정의 7가지 비교 → results/signals.md
+python compare_signals.py          # 돌파 신호 7가지 + 구조 기반 자리 4가지 비교 → results/signals.md
 python -m pytest test_engine.py -q # 체결 로직 테스트
 ```
 
@@ -34,6 +34,12 @@ python -m pytest test_engine.py -q # 체결 로직 테스트
 | 손절 | 진입가 − 1.5ATR | 진입가 − 2ATR | 진입가 − 2ATR, 이후 10일 최저가로 끌어올림 |
 | 익절 | 2R에서 절반, 나머지는 종가가 10일선 밑이면 다음날 시가 | 2R 전량 | 없음 (추세 추종) |
 | 시간 손절 | 10거래일 내 2R 미도달 시 다음날 시가 | 없음 | 없음 |
+
+3. 구조 기반 자리 (`structure`, 신호는 `engine.STRUCTURE_SIGNALS`)
+- 0.618 되돌림, 60일선과 겹치는 0.618 자리, 박스 하단 스프링, 지지·저항 전환 자리를 숫자로 정의했습니다.
+- 진입: 다음날 신호일 고가를 돌파할 때 매수합니다.
+- 손절: 신호일 저가 − 0.25ATR (짧은 무효화 기준).
+- 목표: 직전 고점, 박스 상단 같은 구조상 가격입니다. 체결가 기준 손익비가 2 이상일 때만 진입하고, 20거래일이 지나면 정리합니다.
 
 보수적 가정
 - 갭이 나면 손절가가 아니라 시가에 체결합니다.
