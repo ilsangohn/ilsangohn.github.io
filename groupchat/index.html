@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="단톡방">
+<title>단톡방</title>
+<style>
+  :root {
+    --bg: #f4f4f6; --panel: #ffffff; --text: #1c1c1e; --muted: #8a8a8e; --line: #e2e2e6;
+    --me: #3b82f6; --me-text: #ffffff; --claude: #fbeee6; --claude-name: #c2410c;
+    --codex: #e8f5ee; --codex-name: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111113; --panel: #1c1c1f; --text: #ececee; --muted: #8e8e93; --line: #2c2c30;
+      --me: #2563eb; --claude: #2d211b; --claude-name: #fb923c;
+      --codex: #17271e; --codex-name: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0; }
+  header small { color: var(--muted); font-size: 12px; word-break: break-all; }
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 88%; display: flex; flex-direction: column; }
+  .msg .name { font-size: 12px; font-weight: 600; margin: 0 4px 2px; }
+  .bubble { padding: 9px 13px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .me { align-self: flex-end; align-items: flex-end; }
+  .me .bubble { background: var(--me); color: var(--me-text); }
+  .claude .bubble { background: var(--claude); }
+  .claude .name { color: var(--claude-name); }
+  .codex .bubble { background: var(--codex); }
+  .codex .name { color: var(--codex-name); }
+  .bubble pre {
+    margin: 6px 0; padding: 8px; border-radius: 8px; overflow-x: auto;
+    background: rgba(0,0,0,.08); font: 13px/1.4 ui-monospace, Menlo, monospace; white-space: pre;
+  }
+  #typing { color: var(--muted); font-size: 13px; padding: 0 16px 6px; min-height: 20px; }
+  form {
+    display: flex; flex-direction: column; gap: 8px; background: var(--panel);
+    border-top: 1px solid var(--line); padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .targets { display: flex; gap: 6px; }
+  .targets button {
+    border: 1px solid var(--line); background: transparent; color: var(--text);
+    border-radius: 999px; padding: 4px 12px; font-size: 13px;
+  }
+  .targets button.on { background: var(--text); color: var(--panel); border-color: var(--text); }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  textarea {
+    flex: 1; resize: none; border: 1px solid var(--line); border-radius: 18px;
+    padding: 9px 14px; font: inherit; background: var(--bg); color: var(--text); max-height: 160px;
+  }
+  #send {
+    border: 0; border-radius: 18px; padding: 9px 16px; font: inherit; font-weight: 600;
+    background: var(--me); color: #fff;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>나 · Claude · Codex</h1>
+  <small id="workdir"></small>
+</header>
+<div id="log"></div>
+<div id="typing"></div>
+<form id="form">
+  <div class="targets">
+    <button type="button" data-t="" class="on">모두</button>
+    <button type="button" data-t="@claude ">Claude만</button>
+    <button type="button" data-t="@codex ">Codex만</button>
+  </div>
+  <div class="row">
+    <textarea id="input" rows="1" placeholder="메시지 입력"></textarea>
+    <button id="send" type="submit">보내기</button>
+  </div>
+</form>
+<script>
+  // 첫 접속 때 받은 토큰은 쿠키에 저장되므로 주소창에서는 지운다
+  if (location.search.includes("token=")) history.replaceState(null, "", "/");
+
+  const NAMES = { me: "나", claude: "Claude", codex: "Codex" };
+  const log = document.getElementById("log");
+  const input = document.getElementById("input");
+  const typing = document.getElementById("typing");
+  let since = 0, prefix = "";
+
+  function render(text) {
+    const esc = text.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    return esc.replace(/```[^\n]*\n([\s\S]*?)```/g, "<pre>$1</pre>");
+  }
+
+  function add(m) {
+    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+    const el = document.createElement("div");
+    el.className = "msg " + m.who;
+    el.innerHTML = (m.who === "me" ? "" : `<div class="name">${NAMES[m.who]}</div>`)
+      + `<div class="bubble">${render(m.text)}</div>`;
+    log.appendChild(el);
+    if (atBottom || m.who === "me") log.scrollTop = log.scrollHeight;
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch(`/messages?since=${since}`);
+      if (r.ok) {
+        const data = await r.json();
+        data.messages.forEach(add);
+        since += data.messages.length;
+        typing.textContent = data.busy ? `${NAMES[data.busy]}가 생각하는 중…` : "";
+        document.getElementById("workdir").textContent = data.workdir;
+      }
+    } catch (e) { typing.textContent = "연결이 끊겼어요. 다시 시도하는 중…"; }
+    setTimeout(poll, 2000);
+  }
+
+  document.querySelectorAll(".targets button").forEach(b => b.onclick = () => {
+    document.querySelectorAll(".targets button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    prefix = b.dataset.t;
+  });
+
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = input.scrollHeight + "px";
+  });
+  input.addEventListener("keydown", e => {
+    // 데스크톱: Enter 전송, Shift+Enter 줄바꿈 (한글 조합 중에는 무시)
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && matchMedia("(pointer: fine)").matches) {
+      e.preventDefault();
+      document.getElementById("form").requestSubmit();
+    }
+  });
+
+  document.getElementById("form").onsubmit = async e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    input.style.height = "auto";
+    const full = text.startsWith("@") ? text : prefix + text;
+    await fetch("/send", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: full }),
+    });
+  };
+
+  poll();
+</script>
+</body>
+</html>
