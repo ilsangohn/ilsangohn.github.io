@@ -10,6 +10,7 @@ python run.py                      # 미국+국내, 3개 전략 → results/repo
 python run.py --market kr --sensitivity
 python run.py --no-market-filter   # 지수 필터 효과 비교
 python compare_signals.py          # 돌파 신호 7가지 + 구조 기반 자리 4가지 비교 → results/signals.md
+python coinflip.py                 # 동전 던지기 진입 추세추종 (ETF 22개 롱·숏) → results/coinflip.md
 python -m pytest test_engine.py -q # 체결 로직 테스트
 ```
 
