@@ -74,7 +74,7 @@ h2 { font-size: 1.25rem; line-height: 1.3; display: flex; align-items: baseline;
 .button.ghost { background: transparent; color: var(--accent); }
 .button:hover { filter: brightness(1.08); }
 .recent, .contact { display: grid; gap: 1.1rem; }
-.more { font-size: 0.92rem; }
+.h2-link { font: 400 0.88rem/1 var(--font-body); margin-left: 0.4rem; }
 .contact dl { margin: 0; display: grid; grid-template-columns: 5rem 1fr; gap: 0.5rem 1rem; }
 .contact dt { color: var(--muted); font-size: 0.85rem; padding-top: 0.1rem; }
 .contact dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
