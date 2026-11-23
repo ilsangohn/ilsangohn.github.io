@@ -1,0 +1,13 @@
+# 강의 목록. materials에 강의노트·슬라이드 링크를 넣으면 공개 자료로 보입니다.
+- course: "[수리통계학 1 / Mathematical Statistics I]"
+  level: Undergraduate
+  terms: "[2026 Fall]"
+  description: "[한두 줄 소개]"
+  materials:
+    - name: "[Lecture notes]"
+      url: "[/assets/files/...pdf]"
+- course: "[회귀분석 / Regression Analysis]"
+  level: Undergraduate
+  terms: "[2026 Spring]"
+  description: "[한두 줄 소개]"
+  materials: []

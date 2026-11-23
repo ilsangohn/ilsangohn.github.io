@@ -1,3 +1,50 @@
-theme: jekyll-theme-midnight
+# 사이트 기본 정보 — [대괄호] 부분을 채워 주세요.
+title: "[Your Name]"
+description: "[한 줄 소개, 예: Statistician working on Bayesian inference and uncertainty quantification]"
+url: "https://ilsangohn.github.io"
+baseurl: ""
+lang: en
+
+# 프로필 (홈 화면 상단에 표시)
+author:
+  name: "[Your Name]"
+  name_ko: "[한글 이름]"
+  position: "[Associate Professor]"
+  department: "[Department of Statistics]"
+  affiliation: "[University]"
+  email: "[name@university.ac.kr]"
+  photo: /assets/img/profile.jpg   # 사진을 이 경로에 넣으면 표시됩니다 (없으면 생략)
+  links:
+    - name: CV
+      url: /cv/
+    - name: Google Scholar
+      url: "[https://scholar.google.com/citations?user=...]"
+    - name: GitHub
+      url: https://github.com/ilsangohn
+    - name: ORCID
+      url: "[https://orcid.org/...]"
+
+markdown: kramdown
+kramdown:
+  input: GFM
+  math_engine: null   # 수식은 KaTeX가 브라우저에서 렌더링
+
+permalink: /notes/:year/:title/
+
+plugins:
+  - jekyll-seo-tag
+  - jekyll-feed
+  - jekyll-sitemap
+
+defaults:
+  - scope: { path: "", type: posts }
+    values: { layout: post, math: true }
+  - scope: { path: "" }
+    values: { layout: page }
+
 exclude:
   - groupchat
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - vendor

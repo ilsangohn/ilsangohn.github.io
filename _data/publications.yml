@@ -1,0 +1,18 @@
+# 논문 목록. status: preprint | published
+# 본인 이름은 author 이름과 같게 쓰면 자동으로 굵게 표시됩니다.
+- title: "[Paper title]"
+  authors: "[Coauthor A], [Your Name], [Coauthor B]"
+  venue: "[Annals of Statistics]"
+  year: 2026
+  status: published
+  links:
+    pdf: "[https://...]"
+    arxiv: "[https://arxiv.org/abs/...]"
+    code: "[https://github.com/...]"
+- title: "[Preprint title]"
+  authors: "[Your Name], [Coauthor]"
+  venue: "arXiv"
+  year: 2026
+  status: preprint
+  links:
+    arxiv: "[https://arxiv.org/abs/...]"

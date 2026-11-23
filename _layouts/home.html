@@ -1,0 +1,24 @@
+---
+layout: default
+---
+{% assign a = site.author %}
+<section class="profile">
+  {% if a.photo %}<img class="photo" src="{{ a.photo | relative_url }}" alt="{{ a.name }}" onerror="this.remove()">{% endif %}
+  <div>
+    <h1>{{ a.name }} <span class="name-ko">{{ a.name_ko }}</span></h1>
+    <p class="position">{{ a.position }}<br>{{ a.department }}, {{ a.affiliation }}</p>
+    <p class="contact">{{ a.email }}</p>
+    <p class="links">
+      {% for l in a.links %}<a href="{% if l.url contains '://' %}{{ l.url }}{% else %}{{ l.url | relative_url }}{% endif %}">{{ l.name }}</a>{% endfor %}
+    </p>
+  </div>
+</section>
+{{ content }}
+{% if site.data.news.size > 0 %}
+<h2>News</h2>
+<ul class="news">
+  {% for n in site.data.news limit: 6 %}
+  <li><span class="date">{{ n.date }}</span> {{ n.text | markdownify | remove: '<p>' | remove: '</p>' }}</li>
+  {% endfor %}
+</ul>
+{% endif %}

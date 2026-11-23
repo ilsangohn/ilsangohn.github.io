@@ -1,0 +1,8 @@
+{% assign p = include.p %}
+{% capture me_bold %}<strong>{{ include.me }}</strong>{% endcapture %}
+<li>
+  <span class="pub-title">{{ p.title }}</span><br>
+  <span class="pub-authors">{{ p.authors | replace: include.me, me_bold }}</span>
+  <span class="pub-venue"><em>{{ p.venue }}</em>, {{ p.year }}</span>
+  {% if p.links %}<span class="pub-links">{% for l in p.links %}<a href="{{ l[1] }}">{{ l[0] }}</a>{% endfor %}</span>{% endif %}
+</li>

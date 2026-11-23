@@ -1,0 +1,5 @@
+# 최근 소식. 위에 있을수록 최신. 홈 화면에 최대 6개 표시됩니다.
+- date: "[2026.11]"
+  text: "[예: New preprint on ... posted on arXiv.]"
+- date: "[2026.09]"
+  text: "[예: Paper accepted at ...]"

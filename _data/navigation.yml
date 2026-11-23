@@ -1,0 +1,13 @@
+# 상단 메뉴. 순서를 바꾸거나 항목을 지워도 됩니다.
+- title: Research
+  url: /research/
+- title: Teaching
+  url: /teaching/
+- title: Group
+  url: /group/
+- title: Notes
+  url: /notes/
+- title: Research with AI
+  url: /ai/
+- title: CV
+  url: /cv/
