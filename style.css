@@ -90,9 +90,9 @@ h2 { font-size: 1.25rem; line-height: 1.3; display: flex; align-items: baseline;
 .pub-title { font: 500 1.02rem/1.45 var(--font-display); overflow-wrap: anywhere; }
 .pub-title a { color: inherit; text-decoration: none; }
 .pub-title a:hover { text-decoration: underline; }
-.pub .pub-title { color: var(--title); }
+.pub .pub-title, .talk .pub-title { color: var(--title); }
 .pub-authors { color: var(--muted); font-size: 0.92rem; }
-.pub .pub-authors, .pub .pub-meta { color: var(--fg); }
+.pub .pub-authors, .pub .pub-meta, .talk .pub-authors { color: var(--fg); }
 .pub-authors strong { color: var(--fg); font-weight: 600; }
 .pub-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.5rem; font-size: 0.9rem; }
 .venue { font-style: italic; margin-right: 0.25rem; }
@@ -103,10 +103,13 @@ h2 { font-size: 1.25rem; line-height: 1.3; display: flex; align-items: baseline;
 }
 .chip:hover { text-decoration: underline; }
 
-/* Talks and courses */
+/* Talks: title, venue, date on the left; Slides button in a right column */
 .talk, .course { display: grid; grid-template-columns: 9.5rem 1fr; gap: 0 1rem; border-top: 1px solid var(--rule); padding-top: 1rem; }
-.talk > div, .course > div { display: grid; gap: 0.15rem; min-width: 0; }
+.talk { grid-template-columns: 1fr 5.5rem; gap: 0 1.5rem; }
+.talk > div, .course > div { display: grid; gap: 0.15rem; min-width: 0; align-content: start; }
 .when { color: var(--muted); font-size: 0.82rem; line-height: 1.8; }
+.pub-meta .when { margin-right: 0.4rem; }
+.talk-action .button { display: block; text-align: center; padding: 0.3rem 0.75rem; font-size: 0.82rem; line-height: 1.3; }
 .empty { color: var(--muted); border-top: 1px solid var(--rule); padding-top: 1rem; }
 .courses:empty { display: none; }
 
@@ -135,7 +138,8 @@ h2 { font-size: 1.25rem; line-height: 1.3; display: flex; align-items: baseline;
 @media (max-width: 600px) {
   .intro { grid-template-columns: 1fr; }
   .portrait { width: 8.5rem; order: -1; margin-top: 0; }
-  .year-block, .talk, .course { grid-template-columns: 1fr; gap: 0.4rem; }
+  .year-block, .course { grid-template-columns: 1fr; gap: 0.4rem; }
+  .talk { grid-template-columns: 1fr 4.8rem; gap: 0 0.9rem; }
   .contact dl { grid-template-columns: 1fr; gap: 0.1rem; }
   .contact dd { margin-bottom: 0.6rem; }
 }
