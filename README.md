@@ -7,3 +7,4 @@ Plain HTML with one shared stylesheet (`style.css`); no build step.
 - `index.html`, `publications.html`, `talks.html`, `teaching.html`: the four pages
 - `cv.pdf`: compiled CV
 - `teaching/<course>/`: lecture-note PDFs linked from `teaching.html`
+- `slides/YYYY-MM_<event>.pdf`: talk slides linked from `talks.html`
